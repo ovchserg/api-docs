@@ -313,7 +313,7 @@ Content-Type: application/json; charset=utf-8
 - Если в запросе от склада пришли не все размеры, размеры, которых нет в запросе, **обнуляются** для этого склада.
 - Если `count = 0` — размер удаляется из данных этого склада.
 - Суммарные остатки по размерам пересчитываются автоматически по всем складам.
-- Если у товара не осталось ни одного остатка > 0, товар помечается как «не в наличии» (`stock = 0`).
+- Если у товара не осталось ни одного остатка > 0, товар помечается как «не в наличии» (`stock = 0`). При этом его статус обновляется на «обычный» (`status = 1`).
 - **Автоматическое выставление новинок**: если товар ранее был «не в наличии», а при текущем обновлении его суммарное количество по всем размерам стало **больше 3**, то товару автоматически присваивается статус новинки (`status = 2`, `novinka = 1`, `novinkaDate = текущее время`).
 
 ---
@@ -426,7 +426,7 @@ curl https://your-domain.com/api/stocks/health
 
 ---
 
-### 3. Импорт заказов
+### 4. Импорт заказов
 
 > ⚠️ **Эндпоинт в разработке.** Структура запроса будет определена позже.
 
@@ -458,15 +458,25 @@ curl -X POST https://your-domain.com/api/orders/import \
 
 ---
 
-### 4. Экспорт заказов
+### 5. Экспорт заказов
 
-> ⚠️ **Эндпоинт в разработке.** Структура ответа будет определена позже.
+Выгрузка заказов с сайта для обработки в 1С. Каждый товар в заказе возвращается **отдельной строкой**.
 
 ```
 GET /api/orders/export
 ```
 
 **Авторизация:** обязательна (`X-Api-Key`)
+
+#### Параметры запроса (query string)
+
+| Параметр | Тип | Обязательный | По умолчанию | Описание |
+|----------|-----|:---:|--------------|----------|
+| `timeStart` | string (дата) | ❌ | Начало текущего дня | Начало периода по `time_update` (например, `2026-04-09`) |
+| `timeEnd` | string (дата) | ❌ | Текущее время + 1 час | Конец периода по `time_update` (например, `2026-04-11`) |
+| `idStart` | number | ❌ | — | Минимальный ID заказа |
+| `idEnd` | number | ❌ | — | Максимальный ID заказа |
+| `limit` | number | ❌ | 1000 | Максимальное количество заказов из БД |
 
 #### Пример запроса
 
@@ -475,21 +485,99 @@ curl https://your-domain.com/api/orders/export \
   -H "X-Api-Key: ваш-секретный-ключ"
 ```
 
-#### Текущий ответ
+#### Пример запроса с фильтрами
+
+```bash
+curl "https://your-domain.com/api/orders/export?timeStart=2026-04-09&timeEnd=2026-04-11&limit=50" \
+  -H "X-Api-Key: ваш-секретный-ключ"
+```
+
+#### Успешный ответ
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+```
 
 ```json
 {
   "success": true,
-  "message": "Orders export endpoint is not implemented yet.",
-  "implemented": false,
-  "orders": [],
-  "hint": "This endpoint will return orders for 1C. Schema will be defined later."
+  "message": "Orders export completed",
+  "count": 3,
+  "orders": [
+    {
+      "id": 5726,
+      "group_id": 4465,
+      "created": "2026-04-10 21:44:05",
+      "updated": "2026-04-11 10:24:22",
+      "codeStatus": 1,
+      "nameStatus": "новый",
+      "codeProduct": 2502,
+      "nameProduct": "БОТИНКИ МУЖСКИЕ 129 PILOT ULTRA | Garsing",
+      "price": 127,
+      "discount": 0,
+      "priceDiscount": 127,
+      "size": 42,
+      "count": 1,
+      "warehouse": "00-000001"
+    },
+    {
+      "id": 5732,
+      "group_id": 4470,
+      "created": "2026-04-11 08:16:46",
+      "updated": "2026-04-11 11:10:21",
+      "codeStatus": 1,
+      "nameStatus": "новый",
+      "codeProduct": 9206,
+      "nameProduct": "Костюм Горка 6 Full Деми Хаки(Olive) | FENC&PEHOTA",
+      "price": 199,
+      "discount": 0,
+      "priceDiscount": 199,
+      "size": "XXL-REG/54-182",
+      "count": 1,
+      "warehouse": "00-000001"
+    }
+  ]
 }
+```
+
+#### Описание полей ответа
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `count` | number | Общее количество строк в `orders` |
+| `orders` | array | Массив строк заказов (каждый товар — отдельная строка) |
+| `orders[].id` | number | ID записи заказа |
+| `orders[].group_id` | number | ID группы заказа (объединяет товары одного заказа) |
+| `orders[].created` | string | Дата создания заказа (`Y-m-d H:i:s`) |
+| `orders[].updated` | string | Дата последнего обновления (`Y-m-d H:i:s`) |
+| `orders[].codeStatus` | number | Числовой код статуса заказа |
+| `orders[].nameStatus` | string | Текстовое название статуса |
+| `orders[].codeProduct` | number | ID товара (соответствует `sku.id`) |
+| `orders[].nameProduct` | string | Название товара из таблицы `sku` |
+| `orders[].price` | number | Цена в рублях (округлённая) |
+| `orders[].discount` | number | Размер скидки |
+| `orders[].priceDiscount` | number | Цена со скидкой |
+| `orders[].size` | string/number | Размер товара |
+| `orders[].count` | number | Количество единиц |
+| `orders[].warehouse` | string | Код склада (по умолчанию `"00-000001"`) |
+
+#### Справочник статусов
+
+| Код | Название |
+|:---:|----------|
+| 0 | предзаказ |
+| 1 | новый |
+| 2 | отказ |
+| 3 | реализован |
+| 4 | возврат |
+
+> **Примечание:** в выборку попадают только заказы со `status > 0`.
 ```
 
 ---
 
-### 5. Общий health-check обмена
+### 6. Общий health-check обмена
 
 Общая проверка работоспособности API со списком всех доступных эндпоинтов.
 
@@ -519,7 +607,7 @@ curl https://your-domain.com/api/exchange/health
     "stocks_export": "GET /api/stocks/export",
     "stocks_health": "GET /api/stocks/health",
     "orders_import": "POST /api/orders/import (stub)",
-    "orders_export": "GET /api/orders/export (stub)",
+    "orders_export": "GET /api/orders/export",
     "exchange_health": "GET /api/exchange/health"
   }
 }
@@ -645,5 +733,5 @@ curl -X GET https://your-domain.com/api/stocks/import
 | `GET` | `/api/stocks/export` | ✅ | Работает |
 | `GET` | `/api/stocks/health` | ❌ | Работает |
 | `POST` | `/api/orders/import` | ✅ | Заглушка |
-| `GET` | `/api/orders/export` | ✅ | Заглушка |
+| `GET` | `/api/orders/export` | ✅ | ✅ Работает |
 | `GET` | `/api/exchange/health` | ❌ | Работает |
