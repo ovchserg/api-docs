@@ -477,6 +477,7 @@ GET /api/orders/export
 | `idStart` | number | ❌ | — | Минимальный ID заказа |
 | `idEnd` | number | ❌ | — | Максимальный ID заказа |
 | `limit` | number | ❌ | 1000 | Максимальное количество заказов из БД |
+| `market` | number | ❌ | — | ID площадки, на которой был сделан заказ (`1` — pehota.by, `2` — infantry.by) |
 
 #### Пример запроса
 
@@ -489,6 +490,13 @@ curl https://your-domain.com/api/orders/export \
 
 ```bash
 curl "https://your-domain.com/api/orders/export?timeStart=2026-04-09&timeEnd=2026-04-11&limit=50" \
+  -H "X-Api-Key: ваш-секретный-ключ"
+```
+
+#### Пример запроса с фильтром по площадке
+
+```bash
+curl "https://your-domain.com/api/orders/export?market=1" \
   -H "X-Api-Key: ваш-секретный-ключ"
 ```
 
@@ -512,6 +520,8 @@ Content-Type: application/json; charset=utf-8
       "updated": "2026-04-11 10:24:22",
       "codeStatus": 1,
       "nameStatus": "новый",
+      "market": 1,
+      "nameMarket": "pehota.by",
       "codeProduct": 2502,
       "nameProduct": "БОТИНКИ МУЖСКИЕ 129 PILOT ULTRA | Garsing",
       "price": 127,
@@ -528,6 +538,8 @@ Content-Type: application/json; charset=utf-8
       "updated": "2026-04-11 11:10:21",
       "codeStatus": 1,
       "nameStatus": "новый",
+      "market": 2,
+      "nameMarket": "infantry.by",
       "codeProduct": 9206,
       "nameProduct": "Костюм Горка 6 Full Деми Хаки(Olive) | FENC&PEHOTA",
       "price": 199,
@@ -553,6 +565,8 @@ Content-Type: application/json; charset=utf-8
 | `orders[].updated` | string | Дата последнего обновления (`Y-m-d H:i:s`) |
 | `orders[].codeStatus` | number | Числовой код статуса заказа |
 | `orders[].nameStatus` | string | Текстовое название статуса |
+| `orders[].market` | number | ID площадки, на которой был сделан заказ |
+| `orders[].nameMarket` | string | Название площадки (из справочника `markets`) |
 | `orders[].codeProduct` | number | ID товара (соответствует `sku.id`) |
 | `orders[].nameProduct` | string | Название товара из таблицы `sku` |
 | `orders[].price` | number | Цена в рублях (округлённая) |
@@ -573,6 +587,14 @@ Content-Type: application/json; charset=utf-8
 | 4 | возврат |
 
 > **Примечание:** в выборку попадают только заказы со `status > 0`.
+
+#### Справочник площадок
+
+| Код | Название |
+|:---:|----------|
+| 0 | не указан |
+| 1 | pehota.by |
+| 2 | infantry.by |
 ```
 
 ---
